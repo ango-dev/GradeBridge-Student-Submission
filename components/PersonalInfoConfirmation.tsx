@@ -34,11 +34,11 @@ const PersonalInfoConfirmation: React.FC<PersonalInfoConfirmationProps> = ({
   <section
     id={PERSONAL_INFO_ANCHOR_ID}
     className={`mb-10 rounded-lg border p-5 shadow-sm scroll-mt-6 ${
-      confirmed ? 'border-green-300 bg-green-50' : 'border-blue-300 bg-blue-50'
+      confirmed ? 'border-green-300 bg-green-50' : 'border-aggie-300 bg-aggie-50'
     }`}
   >
-    <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-900">
-      <ShieldCheck className="h-5 w-5 flex-shrink-0 text-blue-700" />
+    <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-aggie-900">
+      <ShieldCheck className="h-5 w-5 flex-shrink-0 text-aggie-700" />
       Before you download
     </h2>
     {stale && !confirmed && (
@@ -52,9 +52,9 @@ const PersonalInfoConfirmation: React.FC<PersonalInfoConfirmationProps> = ({
         type="checkbox"
         checked={confirmed}
         onChange={(e) => onChange(e.target.checked)}
-        className="mt-0.5 h-5 w-5 flex-shrink-0 accent-blue-600"
+        className="mt-0.5 h-5 w-5 flex-shrink-0 accent-aggie-600"
       />
-      <span className="text-sm font-medium text-slate-900">{PERSONAL_INFO_STATEMENT}</span>
+      <span className="text-sm font-medium text-aggie-900">{PERSONAL_INFO_STATEMENT}</span>
     </label>
     <p className="mt-3 pl-8 text-sm text-gray-700">{PERSONAL_INFO_GUIDANCE}</p>
   </section>

@@ -79,6 +79,43 @@ export const GENERIC_WORDING = {
   coverageNeverBlocks: 'None of this stops you downloading.',
   chipUnlabelled: (n: number): string => `${n} without a part`,
 
+  // ---- PROPOSED, NOT YET APPROVED (2026-11-04) -----------------------------
+  // The part-first matching grid and the one-at-a-time check that replace the
+  // per-page dropdown, tick boxes and list. Every string below needs approval
+  // before it ships, as the header of this file says.
+
+  /** The two steps of the review section. */
+  stepMatch: '1. Match pages to parts',
+  stepCheck: '2. Check each page',
+  /** Above the matching grid. */
+  matchIntro:
+    'Choose a part from the list, then click every page that has it. Click a page again to take the part off. ' +
+    'Ctrl-click (⌘-click on a Mac) also adds or removes one page, and Shift-click adds every page between.',
+  partsListHeading: 'Parts',
+  matchActive: (label: string): string => `Pages for ${label}`,
+  matchPickPartFirst: 'Choose a part from the list first.',
+  partPageCount: (n: number): string => (n === 1 ? '1 page' : `${n} pages`),
+  partNoPage: 'No page yet',
+  nextPart: 'Next part',
+  pageNoPart: 'No part yet',
+  headerMissing: 'The top of this page could not be cut out.',
+  sizeLabel: 'Size',
+  sizeLarge: 'Large',
+  sizeExtraLarge: 'Extra large',
+  goToCheck: 'Next: check each page',
+  /** The one-at-a-time check. */
+  deckHint:
+    'Swipe right, or press →, if it looks right. Swipe left, or press ←, if something is wrong. ' +
+    'Swipe up, or press ↑, if you are not sure; it comes back at the end.',
+  notSure: 'Not sure yet',
+  undo: 'Undo',
+  deckProgress: (done: number, total: number): string => `${done} of ${total} done`,
+  deckDone: 'You have been through every page.',
+  deckAgainUnsure: 'Go through the pages you were not sure about',
+  deckAgainAll: 'Go through every page again',
+  deckJump: 'Jump to a page',
+  // ---- end of PROPOSED ------------------------------------------------------
+
   /** Loading a generic-sheet file that is not well formed. */
   badGenericFile:
     'This assignment file is incomplete, or was made by a newer version of the app. ' +
