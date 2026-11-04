@@ -751,7 +751,9 @@ check('each card says what the student chose, and the list counts it', () => {
 });
 check('no dropdown and no tick boxes: nothing is ticked for the student', () => {
   assert(!/<select/.test(html), 'a dropdown is still rendered');
-  assert(!/type="checkbox"/.test(html), 'tick boxes are still rendered');
+  // A part's tick box carried its part id as its value. The "Hide matched
+  // pages" switch is a checkbox too, and has none.
+  assert(!/<input[^>]*type="checkbox"[^>]*value=/.test(html), 'tick boxes are still rendered');
 });
 check('the list starts on the first part with no page', () =>
   assert(/<button[^>]*data-part-id="2"[^>]*aria-pressed="true"/.test(html), 'part 2 is not the one chosen'));
