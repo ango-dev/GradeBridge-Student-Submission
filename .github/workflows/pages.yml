@@ -1,0 +1,64 @@
+# =====================================================
+# Publish to GitHub Pages, only after the suite has passed on main
+# =====================================================
+# The same rule as `npm run deploy` and its gate (scripts/check-ci-green.mjs):
+# nothing is published that CI has not passed. This job does not run the suite
+# itself; it waits for the `tests` workflow to finish on main and publishes
+# exactly the commit that workflow tested, and only if it succeeded.
+#
+# One-time setup, in the repository's settings on GitHub:
+#   Settings > Actions > General: allow actions (a fork has them off).
+#   Settings > Pages > Build and deployment > Source: GitHub Actions.
+# The app is then served at https://<owner>.github.io/<repository>/, which is
+# the `base` in vite.config.ts.
+#
+# "Run workflow" (workflow_dispatch) publishes main by hand, without waiting
+# for a tests run. Use it only for a commit you know is green.
+# =====================================================
+
+name: pages
+
+on:
+  workflow_run:
+    workflows: [tests]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx vite build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
