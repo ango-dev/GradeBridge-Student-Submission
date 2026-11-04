@@ -35,7 +35,8 @@ import { FitNotice, fitNoticeFromPayload } from './services/fitNotice';
 import { LayoutMapError, parseLayoutCsv } from './services/layoutMap';
 import { registerAndCropPage } from './services/pageCrops';
 import {
-  assignGenericPart, genericCompletenessNotice, genericCoverage, genericCropRecord,
+  assignGenericPart, chosenPartIds, genericCompletenessNotice, genericCoverage, genericCropRecord,
+  genericCropsInPageOrder,
   headerStripKey, isGenericSheet, mergeRecutCrops,
 } from './services/genericSheet';
 import { GENERIC_WORDING } from './services/genericWording';
@@ -203,6 +204,19 @@ const App: React.FC = () => {
   // Whether the tick still covers what is on screen. Recomputed only when an
   // answer, a page or a crop actually changes (reference identity), which is
   // exactly when it could stop being true.
+  // Generic page: the pages matched to each part, for the question list.
+  const matchedPages = useMemo(() => {
+    if (!isGeneric) return undefined;
+    const parts = state.assignment?.parts ?? [];
+    const out: Record<string, { key: string; url?: string; headerUrl?: string; photo: number }[]> = {};
+    for (const c of genericCropsInPageOrder(state.crops, state.pages)) {
+      const photo = state.pages.findIndex(p => p.id === c.fromPage) + 1;
+      const headerUrl = c.fromPage ? headerUrls[c.fromPage] : undefined;
+      for (const id of chosenPartIds(c, parts)) (out[id] ??= []).push({ key: c.regionId, url: cropUrls[c.regionId], headerUrl, photo });
+    }
+    return out;
+  }, [isGeneric, state.assignment, state.crops, state.pages, cropUrls, headerUrls]);
+
   const personalInfoCurrent = useMemo(() => !!state.assignment && isConfirmationCurrent(personalInfo, {
     assignment: state.assignment,
     submissionData: state.submissionData,
@@ -1549,7 +1563,7 @@ const App: React.FC = () => {
         
         {/* Edit Mode View */}
         {state.viewMode === 'edit' && (
-          <div className="max-w-4xl mx-auto p-6 lg:p-12 pb-action-bar">
+          <div className={`${isGeneric ? 'max-w-[1600px]' : 'max-w-4xl'} mx-auto p-6 lg:p-10 pb-action-bar`}>
             {!state.assignment ? (
               <div className="flex flex-col items-center justify-center min-h-[60vh] text-center text-gray-400 py-8">
                 <h2 className="text-xl font-semibold text-gray-600 mb-6">
@@ -1678,6 +1692,8 @@ const App: React.FC = () => {
                        submissionData={state.submissionData}
                        onSubmissionChange={handleSubmissionChange}
                        genericSheet={isGeneric}
+                       parts={state.assignment.parts}
+                       matchedPages={matchedPages}
                      />
                    ))}
                  </div>
