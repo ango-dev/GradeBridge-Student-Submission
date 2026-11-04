@@ -100,9 +100,13 @@ export const GENERIC_WORDING = {
   pageNoPart: 'No part yet',
   headerMissing: 'The top of this page could not be cut out.',
   sizeLabel: 'Size',
+  sizeCompact: 'Compact',
   sizeLarge: 'Large',
   sizeExtraLarge: 'Extra large',
+  hideMatched: 'Hide matched pages',
   goToCheck: 'Next: check each page',
+  /** Under each part of the question list, once pages carry it. */
+  matchedPagesLabel: (n: number): string => (n === 1 ? 'Matched page' : `Matched pages (${n})`),
   /** The one-at-a-time check. */
   deckHint:
     'Swipe right, or press →, if it looks right. Swipe left, or press ←, if something is wrong. ' +

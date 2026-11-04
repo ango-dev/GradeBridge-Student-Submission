@@ -1,7 +1,7 @@
 // =====================================================
 // Writes the review golden named in tests/partTitleFixtures.mjs — run ONCE, at
-// the commit it is named for. f8ab9d8 wrote the first; 99dd7c7 wrote the one
-// for the part-first matching grid.
+// the commit it is named for. f8ab9d8 wrote the first; 99dd7c7 the one for the
+// part-first matching grid; fea2ede the one for its compact layout.
 // =====================================================
 // The generic review's markup at the commit that carries the approved wording
 // for labelling by problem, then parts (`FINDINGS_SS_MULTIPART_PAGES_2026-10-07`

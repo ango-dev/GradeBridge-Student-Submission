@@ -59,11 +59,15 @@ interface GenericPageReviewProps {
   busy: string | null;
 }
 
-type Size = 'lg' | 'xl';
+// Compact shows the strip the student wrote on and the top of the box, so a
+// screen holds two or three rows of pages; the larger sizes show the whole box.
+type Size = 'sm' | 'lg' | 'xl';
 const GRID_FOR: Record<Size, string> = {
-  lg: 'repeat(auto-fill, minmax(170px, 1fr))',
-  xl: 'repeat(auto-fill, minmax(260px, 1fr))',
+  sm: 'repeat(auto-fill, minmax(160px, 1fr))',
+  lg: 'repeat(auto-fill, minmax(250px, 1fr))',
+  xl: 'repeat(auto-fill, minmax(360px, 1fr))',
 };
+const SIZES: Size[] = ['sm', 'lg', 'xl'];
 
 const GenericPageReview: React.FC<GenericPageReviewProps> = ({
   parts, problems, crops, cropUrls, headerUrls = {}, pages,
@@ -101,7 +105,10 @@ const GenericPageReview: React.FC<GenericPageReviewProps> = ({
     ordered.filter(c => partsOf.get(c.regionId)?.includes(partId)).length;
 
   const [step, setStep] = useState<'match' | 'check'>('match');
-  const [size, setSize] = useState<Size>('lg');
+  const [size, setSize] = useState<Size>('sm');
+  // Pages that already carry a part can be hidden, so the grid shrinks as the
+  // student works through it.
+  const [hideMatched, setHideMatched] = useState(false);
   // Start on the first part with no page, so the student begins where work is needed.
   const [activePart, setActivePart] = useState<string | null>(() =>
     (parts.find(p => !ordered.some(c => chosenPartIds(c, parts).includes(p.part_id))) ?? parts[0])?.part_id ?? null);
@@ -117,19 +124,24 @@ const GenericPageReview: React.FC<GenericPageReviewProps> = ({
     if (target && files.length > 0) void onRetakePage(target, files[0]);
   };
 
+  /** The pages the grid shows: all of them, or only those with no part yet. */
+  const visible = hideMatched ? ordered.filter(c => (partsOf.get(c.regionId) ?? []).length === 0) : ordered;
+
   /** Click: toggle. Ctrl/⌘-click: toggle, keeping the anchor. Shift-click: add the range. */
   const handlePageClick = (e: React.MouseEvent, i: number) => {
     if (!active) { setHint(W.matchPickPartFirst); return; }
     setHint('');
-    const key = ordered[i].regionId;
-    if (e.shiftKey && anchor.current !== null && anchor.current < ordered.length) {
+    const key = visible[i].regionId;
+    if (e.shiftKey && anchor.current !== null && anchor.current < visible.length) {
       const [a, b] = anchor.current < i ? [anchor.current, i] : [i, anchor.current];
-      onAssignPart(ordered.slice(a, b + 1).map(c => c.regionId), active.part_id, true);
+      onAssignPart(visible.slice(a, b + 1).map(c => c.regionId), active.part_id, true);
     } else {
       const on = !(partsOf.get(key) ?? []).includes(active.part_id);
       onAssignPart([key], active.part_id, on);
     }
-    anchor.current = i;
+    // A matched page leaves the grid when matched pages are hidden, so the
+    // positions move under the anchor: start the next range afresh.
+    anchor.current = hideMatched ? null : i;
   };
 
   const goToNextPart = () => {
@@ -162,16 +174,16 @@ const GenericPageReview: React.FC<GenericPageReviewProps> = ({
 
   // ---- Step 1: the matching grid -------------------------------------------
   const matchStep = (
-    <div className="lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-5">
+    <div className="lg:grid lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-5">
       {/* The parts. A column beside the grid on a wide screen, a scrolling row on a phone. */}
       <nav aria-label={W.partsListHeading}
-        className="mb-4 lg:mb-0 lg:sticky lg:top-4 lg:self-start lg:max-h-[80vh] lg:overflow-y-auto">
+        className="mb-4 lg:mb-0 lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto lg:pr-1">
         <h3 className="hidden lg:block text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">{W.partsListHeading}</h3>
-        <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0">
+        <div className="flex lg:flex-col gap-2 lg:gap-1 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0">
           {groups.map(g => (
-            <div key={g.problemNumber} className="flex lg:flex-col gap-1 flex-shrink-0">
+            <div key={g.problemNumber} className="flex lg:flex-col gap-1 flex-shrink-0 lg:mb-2">
               {g.parts.length > 1 && (
-                <p className="hidden lg:block text-xs font-semibold text-slate-700 mt-2 first:mt-0 break-words">{problemShown(g)}</p>
+                <p className="hidden lg:block text-xs font-semibold text-slate-700 mt-1 break-words">{problemShown(g)}</p>
               )}
               {g.parts.map(p => {
                 const n = pagesFor(p.part_id);
@@ -181,18 +193,18 @@ const GenericPageReview: React.FC<GenericPageReviewProps> = ({
                     key={p.part_id} type="button"
                     data-part-id={p.part_id} data-count={n} aria-pressed={isActive}
                     onClick={() => { setActivePart(p.part_id); anchor.current = null; setHint(''); }}
-                    className={`text-left min-h-[44px] w-56 lg:w-full px-3 py-2 rounded-lg border text-sm transition-colors ${
+                    title={n === 0 ? W.partNoPage : W.partPageCount(n)}
+                    className={`flex items-center gap-2 text-left min-h-[44px] w-56 lg:w-full px-2.5 py-1.5 rounded-lg border text-[13px] transition-colors ${
                       isActive
                         ? 'bg-aggie-900 border-aggie-900 border-l-4 border-l-gold-500 text-white shadow'
                         : 'bg-white border-gray-200 text-gray-900 hover:border-aggie-300 hover:bg-aggie-50'
                     }`}
                   >
-                    <span className="block font-medium break-words leading-snug">{shown(p)}</span>
-                    <span className={`mt-0.5 flex items-center gap-1 text-xs ${
-                      isActive ? 'text-gold-200' : n === 0 ? 'text-red-700' : 'text-gray-500'
-                    }`}>
-                      {n > 0 && <CheckCircle2 className="w-3 h-3" />}
-                      {n === 0 ? W.partNoPage : W.partPageCount(n)}
+                    <span className="flex-1 min-w-0 font-medium break-words leading-snug">{shown(p)}</span>
+                    <span className={`flex-shrink-0 min-w-[1.5rem] h-6 px-1.5 rounded-full text-xs font-bold flex items-center justify-center ${
+                      isActive ? 'bg-gold-500 text-aggie-900' : n === 0 ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-800 border border-green-200'
+                    }`} aria-label={n === 0 ? W.partNoPage : W.partPageCount(n)}>
+                      {n === 0 ? '0' : n}
                     </span>
                   </button>
                 );
@@ -208,12 +220,17 @@ const GenericPageReview: React.FC<GenericPageReviewProps> = ({
             {active ? W.matchActive(shown(active)) : W.matchPickPartFirst}
           </p>
           <div className="flex items-center gap-2">
+            <label className="flex items-center gap-1.5 text-xs font-medium text-gray-700 cursor-pointer select-none">
+              <input type="checkbox" checked={hideMatched} onChange={e => { setHideMatched(e.target.checked); anchor.current = null; }}
+                className="w-4 h-4 accent-aggie-900" />
+              {W.hideMatched}
+            </label>
             <div className="flex rounded-lg border border-gray-300 overflow-hidden text-xs" role="group" aria-label={W.sizeLabel}>
-              {(['lg', 'xl'] as Size[]).map(s => (
+              {SIZES.map(s => (
                 <button key={s} type="button" onClick={() => setSize(s)} aria-pressed={size === s}
-                  className={`px-2.5 py-1.5 flex items-center gap-1 ${size === s ? 'bg-slate-800 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>
-                  <LayoutGrid className={s === 'lg' ? 'w-3 h-3' : 'w-4 h-4'} />
-                  {s === 'lg' ? W.sizeLarge : W.sizeExtraLarge}
+                  className={`px-2.5 py-1.5 flex items-center gap-1 ${size === s ? 'bg-aggie-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>
+                  <LayoutGrid className={s === 'sm' ? 'w-3 h-3' : s === 'lg' ? 'w-3.5 h-3.5' : 'w-4 h-4'} />
+                  {s === 'sm' ? W.sizeCompact : s === 'lg' ? W.sizeLarge : W.sizeExtraLarge}
                 </button>
               ))}
             </div>
@@ -227,7 +244,7 @@ const GenericPageReview: React.FC<GenericPageReviewProps> = ({
         {hint && <p className="mb-3 text-sm text-red-800 bg-red-50 border border-red-200 rounded px-3 py-2" role="status">{hint}</p>}
 
         <ul className="grid gap-3" style={{ gridTemplateColumns: GRID_FOR[size] }}>
-          {ordered.map((crop, i) => {
+          {visible.map((crop, i) => {
             const key = crop.regionId;
             const url = cropUrls[key];
             const n = photoNumber(crop);
@@ -236,7 +253,7 @@ const GenericPageReview: React.FC<GenericPageReviewProps> = ({
             const elsewhere = !!active && ids.length > 0 && !on &&
               parts.find(p => p.part_id === ids[0])?.problem_number !== active.problem_number;
             return (
-              <li key={key} data-page-card={key} data-parts={ids.join(' ')}
+              <li key={key} id={`page-card-${key}`} data-page-card={key} data-parts={ids.join(' ')}
                 className={`rounded-xl border-2 bg-white overflow-hidden transition-shadow ${
                   on ? 'border-aggie-700 shadow-md ring-4 ring-gold-300' : 'border-gray-200 hover:border-aggie-300'
                 }`}
@@ -251,9 +268,9 @@ const GenericPageReview: React.FC<GenericPageReviewProps> = ({
                   {url ? (
                     <img src={url} draggable={false}
                       alt={`${W.photoHeading(n)}${parts.filter(p => ids.includes(p.part_id)).map(p => `, ${shown(p)}`).join('')}`}
-                      className="w-full h-auto aspect-square object-contain bg-white" />
+                      className={`w-full bg-white ${size === 'sm' ? 'aspect-[2/1] object-cover object-left-top' : 'h-auto aspect-square object-contain'}`} />
                   ) : (
-                    <div className="aspect-square flex items-center justify-center text-gray-400">
+                    <div className={`${size === 'sm' ? 'aspect-[2/1]' : 'aspect-square'} flex items-center justify-center text-gray-400`}>
                       <RefreshCw className="w-4 h-4 animate-spin" />
                     </div>
                   )}
@@ -414,8 +431,10 @@ const GenericPageReview: React.FC<GenericPageReviewProps> = ({
               {coverage.missing.length > 0 && (
                 <div>
                   <p className="font-semibold">{W.coverageMissing}</p>
-                  <ul className="list-disc pl-5">
-                    {coverage.missing.map(p => <li key={p.part_id}>{shown(p)}</li>)}
+                  <ul className="mt-1 flex flex-wrap gap-1.5">
+                    {coverage.missing.map(p => (
+                      <li key={p.part_id} className="px-2 py-0.5 rounded-full bg-white border border-amber-300 text-xs">{shown(p)}</li>
+                    ))}
                   </ul>
                 </div>
               )}
