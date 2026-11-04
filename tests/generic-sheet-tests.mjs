@@ -755,11 +755,13 @@ check('no dropdown and no tick boxes: nothing is ticked for the student', () => 
 });
 check('the list starts on the first part with no page', () =>
   assert(/<button[^>]*data-part-id="2"[^>]*aria-pressed="true"/.test(html), 'part 2 is not the one chosen'));
-check('a page that carries the chosen part is shown pressed', () => {
+check('a page that carries the chosen part is shown pressed, and no other', () => {
+  // Once every part has a page, the list starts on the first part, 1(a).
   const on = renderReview({ parts, crops: P.assignGenericPart(crops, [P.genericCropKey('gen', 'pgD')], '2', parts, true), pages });
   assert(/data-page-card="gen@pgD"[^>]*data-parts="2"/.test(on), 'photo 4 does not carry part 2');
-  const card = on.split('data-page-card="gen@pgD"')[1];
-  assert(/aria-pressed="true"/.test(card.slice(0, card.indexOf('</button>'))), 'photo 4 is not pressed');
+  assert(/<button[^>]*data-part-id="1\(a\)"[^>]*aria-pressed="true"/.test(on), 'part 1(a) is not the one chosen');
+  const pressed = (id) => { const card = on.split(`data-page-card="gen@${id}"`)[1]; return /aria-pressed="true"/.test(card.slice(0, card.indexOf('</button>'))); };
+  assertEqual(['pgA', 'pgB', 'pgC', 'pgD'].map(pressed), [true, false, true, false], 'pressed pages');
 });
 check('assignGenericPart adds only the part clicked, and a part of another problem moves the page', () => {
   const kA = P.genericCropKey('gen', 'pgA'), kD = P.genericCropKey('gen', 'pgD');

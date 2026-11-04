@@ -43,9 +43,9 @@ const PersonalInfoRequired: React.FC<PersonalInfoRequiredProps> = ({ onGoToConfi
             ref={headingRef}
             tabIndex={-1}
             id="personal-info-required-heading"
-            className="text-lg font-bold text-aggie-900 flex items-center gap-2 outline-none"
+            className="text-lg font-bold text-slate-900 flex items-center gap-2 outline-none"
           >
-            <ShieldCheck className="w-5 h-5 text-aggie-600 flex-shrink-0" />
+            <ShieldCheck className="w-5 h-5 text-blue-600 flex-shrink-0" />
             One check before you download
           </h2>
           <p className="mt-2 text-sm text-gray-700">
@@ -57,7 +57,7 @@ const PersonalInfoRequired: React.FC<PersonalInfoRequiredProps> = ({ onGoToConfi
           <button
             type="button"
             onClick={onGoToConfirmation}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-aggie-900 hover:bg-aggie-800 text-white rounded-lg font-medium text-sm transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium text-sm transition-colors"
           >
             <ArrowDown className="w-4 h-4" />
             Take me to the box
@@ -65,7 +65,7 @@ const PersonalInfoRequired: React.FC<PersonalInfoRequiredProps> = ({ onGoToConfi
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-white hover:bg-slate-100 text-aggie-900 border border-slate-300 rounded-lg font-medium text-sm transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-lg font-medium text-sm transition-colors"
           >
             Close
           </button>
