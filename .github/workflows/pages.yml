@@ -6,11 +6,11 @@
 # itself; it waits for the `tests` workflow to finish on main and publishes
 # exactly the commit that workflow tested, and only if it succeeded.
 #
-# One-time setup, in the repository's settings on GitHub:
-#   Settings > Actions > General: allow actions (a fork has them off).
-#   Settings > Pages > Build and deployment > Source: GitHub Actions.
-# The app is then served at https://<owner>.github.io/<repository>/, which is
-# the `base` in vite.config.ts.
+# The built app is pushed to the `gh-pages` branch, which is what
+# `npm run deploy` has always published to, and GitHub serves that branch at
+# https://<owner>.github.io/<repository>/ (the `base` in vite.config.ts).
+# GitHub turns Pages on by itself when that branch first appears; if it does
+# not, set Settings > Pages > Source to "Deploy from a branch", gh-pages, root.
 #
 # "Run workflow" (workflow_dispatch) publishes main by hand, without waiting
 # for a tests run. Use it only for a commit you know is green.
@@ -26,16 +26,14 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
-  build:
+  publish:
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
     steps:
@@ -49,16 +47,16 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx vite build
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-24.04
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      # The same publish `npm run deploy` does (gh-pages -d dist --dotfiles),
+      # pushed with this workflow's own token.
+      - name: Push dist to gh-pages
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          cd dist
+          git init -q -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Publish $SHA"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" gh-pages
