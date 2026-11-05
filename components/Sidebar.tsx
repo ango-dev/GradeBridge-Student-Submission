@@ -42,7 +42,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       <div className="p-6 bg-aggie-500">
         <div className="flex items-center gap-3 mb-2">
           <div>
-            <h1 className="text-lg font-bold text-white"><span className="text-gold-500">B</span>ridgeSuite</h1>
+            <h1 className="text-lg font-extrabold text-gold-500">BridgeSuite</h1>
             <div className="text-xs text-aggie-200">Student Submission</div>
           </div>
         </div>
