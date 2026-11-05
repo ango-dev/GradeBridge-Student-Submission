@@ -26,8 +26,7 @@ export const PART_TITLE_GOLDEN_PATH = join(HERE, 'fixtures', 'part_title_golden_
 /**
  * The review, at the commit that replaced the dropdown and tick boxes with the
  * part-first matching grid (`tests/make-review-golden.mjs`). Its new strings
- * are PROPOSED in services/genericWording.ts and not yet approved; the golden
- * says the review is what that commit wrote, not that it was approved.
+ * in services/genericWording.ts were approved on 2026-11-05.
  */
 export const REVIEW_GOLDEN_PATH = join(HERE, 'fixtures', 'review_golden_fea2ede.json');
 

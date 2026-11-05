@@ -79,10 +79,11 @@ export const GENERIC_WORDING = {
   coverageNeverBlocks: 'None of this stops you downloading.',
   chipUnlabelled: (n: number): string => `${n} without a part`,
 
-  // ---- PROPOSED, NOT YET APPROVED (2026-11-04) -----------------------------
+  // ---- APPROVED 2026-11-05 by the repository owner --------------------------
   // The part-first matching grid and the one-at-a-time check that replace the
-  // per-page dropdown, tick boxes and list. Every string below needs approval
-  // before it ships, as the header of this file says.
+  // per-page dropdown, tick boxes and list, and the matched pages shown under
+  // each part. Proposed 2026-11-04 and approved as written. A change to any of
+  // them needs approval again, as the header of this file says.
 
   /** The two steps of the review section. */
   stepMatch: '1. Match pages to parts',
@@ -118,7 +119,7 @@ export const GENERIC_WORDING = {
   deckAgainUnsure: 'Go through the pages you were not sure about',
   deckAgainAll: 'Go through every page again',
   deckJump: 'Jump to a page',
-  // ---- end of PROPOSED ------------------------------------------------------
+  // ---- end of the strings approved 2026-11-05 --------------------------------
 
   /** Loading a generic-sheet file that is not well formed. */
   badGenericFile:

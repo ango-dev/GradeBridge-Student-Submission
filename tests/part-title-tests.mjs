@@ -101,7 +101,7 @@ check('whitespace inside a title is tidied, not left to break the line oddly', (
 //   the commit that made the part-first matching grid compact (after 99dd7c7
 //   replaced the dropdown and tick boxes with it). Those changes moved the markup for every assignment, as the
 //   change to labelling by problem did before it (f8ab9d8); the older goldens
-//   are no longer compared. Its new strings are proposed, not yet approved.
+//   are no longer compared. Its new strings were approved on 2026-11-05.
 // - the PROPERTY check: without titles every problem and part shows its formal
 //   label alone. A golden says nothing changed; this says what is right, and
 //   still holds if a later, approved change writes a new golden.
