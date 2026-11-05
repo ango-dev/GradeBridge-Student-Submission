@@ -97,7 +97,7 @@ check('whitespace inside a title is tidied, not left to break the line oddly', (
 //
 // - the DOWNLOAD CHECK is held byte for byte to `part_title_golden_cbb0569.json`,
 //   as deployed before any title work. It has never moved and must not.
-// - the REVIEW is held byte for byte to `review_golden_fea2ede.json`, written at
+// - the REVIEW is held byte for byte to `review_golden_9cb2336.json`, written at
 //   the commit that made the part-first matching grid compact (after 99dd7c7
 //   replaced the dropdown and tick boxes with it). Those changes moved the markup for every assignment, as the
 //   change to labelling by problem did before it (f8ab9d8); the older goldens

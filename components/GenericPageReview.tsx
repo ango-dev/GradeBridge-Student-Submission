@@ -1,6 +1,6 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertTriangle, Camera, CheckCircle2, ChevronRight, Flag, Image as ImageIcon, Info,
+  AlertTriangle, Camera, CheckCircle2, ChevronLeft, ChevronRight, Flag, Image as ImageIcon, Info,
   LayoutGrid, RefreshCw, Upload,
 } from 'lucide-react';
 import { CropRef, GenericPart, PageRef, StudentReview } from '../types';
@@ -63,7 +63,7 @@ interface GenericPageReviewProps {
 // screen holds two or three rows of pages; the larger sizes show the whole box.
 type Size = 'sm' | 'lg' | 'xl';
 const GRID_FOR: Record<Size, string> = {
-  sm: 'repeat(auto-fill, minmax(160px, 1fr))',
+  sm: 'repeat(auto-fill, minmax(210px, 1fr))',
   lg: 'repeat(auto-fill, minmax(250px, 1fr))',
   xl: 'repeat(auto-fill, minmax(360px, 1fr))',
 };
@@ -144,11 +144,35 @@ const GenericPageReview: React.FC<GenericPageReviewProps> = ({
     anchor.current = hideMatched ? null : i;
   };
 
-  const goToNextPart = () => {
+  /** Move to the next part (+1) or back to the previous one (-1), wrapping round. */
+  const goToPart = (delta: number) => {
+    if (parts.length === 0) return;
     const at = parts.findIndex(p => p.part_id === activePart);
-    const next = parts[(at + 1) % parts.length];
-    if (next) { setActivePart(next.part_id); anchor.current = null; }
+    const next = parts[((at < 0 ? 0 : at + delta) + parts.length) % parts.length];
+    setActivePart(next.part_id);
+    anchor.current = null;
+    setHint('');
+    // Keep the chosen part in sight in the parts list.
+    if (typeof document !== 'undefined') {
+      document.querySelector(`[data-part-id="${CSS.escape(next.part_id)}"]`)?.scrollIntoView({ block: 'nearest' });
+    }
   };
+
+  // Keys while matching: N or ] for the next part, B or [ to go back. Never
+  // while the student is typing in a field, and never with a modifier held.
+  useEffect(() => {
+    if (step !== 'match') return;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      if (e.altKey || e.ctrlKey || e.metaKey) return;
+      const k = e.key.toLowerCase();
+      if (k === 'n' || k === ']') { e.preventDefault(); goToPart(1); }
+      else if (k === 'b' || k === '[') { e.preventDefault(); goToPart(-1); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 
   const partChips = (crop: CropRef) => {
     const ids = partsOf.get(crop.regionId) ?? [];
@@ -234,10 +258,21 @@ const GenericPageReview: React.FC<GenericPageReviewProps> = ({
                 </button>
               ))}
             </div>
-            <button type="button" onClick={goToNextPart} disabled={parts.length < 2}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-300 bg-white text-gray-800 hover:bg-gray-50 flex items-center gap-1 disabled:opacity-40">
-              {W.nextPart} <ChevronRight className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex rounded-lg border border-gray-300 overflow-hidden text-xs font-medium" role="group">
+              <button type="button" onClick={() => goToPart(-1)} disabled={parts.length < 2}
+                title={W.previousPartKeys}
+                className="px-2.5 py-1.5 bg-white text-gray-800 hover:bg-gray-50 flex items-center gap-1 border-r border-gray-300 disabled:opacity-40">
+                <ChevronLeft className="w-3.5 h-3.5" /> {W.previousPart}
+                <kbd className="ml-1 px-1 rounded border border-gray-300 bg-gray-50 text-[10px] font-mono text-gray-500">B</kbd>
+              </button>
+              <button type="button" onClick={() => goToPart(1)} disabled={parts.length < 2}
+                title={W.nextPartKeys}
+                className="px-2.5 py-1.5 bg-white text-gray-800 hover:bg-gray-50 flex items-center gap-1 disabled:opacity-40">
+                {W.nextPart}
+                <kbd className="ml-1 px-1 rounded border border-gray-300 bg-gray-50 text-[10px] font-mono text-gray-500">N</kbd>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         </div>
         <p className="text-xs text-gray-600 mb-3">{W.matchIntro}</p>
@@ -265,10 +300,18 @@ const GenericPageReview: React.FC<GenericPageReviewProps> = ({
                   className={`relative block w-full text-left ${elsewhere ? 'opacity-60' : ''}`}
                 >
                   {headerStrip(crop)}
-                  {url ? (
+                  {url && size === 'sm' ? (
+                    // Compact: the top-left of the box at about twice the size,
+                    // so the writing can be read while the card stays short.
+                    <div className="aspect-[2/1] overflow-hidden bg-white">
+                      <img src={url} draggable={false}
+                        alt={`${W.photoHeading(n)}${parts.filter(p => ids.includes(p.part_id)).map(p => `, ${shown(p)}`).join('')}`}
+                        className="block max-w-none w-[190%] h-auto" />
+                    </div>
+                  ) : url ? (
                     <img src={url} draggable={false}
                       alt={`${W.photoHeading(n)}${parts.filter(p => ids.includes(p.part_id)).map(p => `, ${shown(p)}`).join('')}`}
-                      className={`w-full bg-white ${size === 'sm' ? 'aspect-[2/1] object-cover object-left-top' : 'h-auto aspect-square object-contain'}`} />
+                      className="w-full bg-white h-auto aspect-square object-contain" />
                   ) : (
                     <div className={`${size === 'sm' ? 'aspect-[2/1]' : 'aspect-square'} flex items-center justify-center text-gray-400`}>
                       <RefreshCw className="w-4 h-4 animate-spin" />
