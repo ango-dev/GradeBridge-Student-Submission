@@ -28,7 +28,7 @@ export const PART_TITLE_GOLDEN_PATH = join(HERE, 'fixtures', 'part_title_golden_
  * part-first matching grid (`tests/make-review-golden.mjs`). Its new strings
  * in services/genericWording.ts were approved on 2026-11-05.
  */
-export const REVIEW_GOLDEN_PATH = join(HERE, 'fixtures', 'review_golden_fea2ede.json');
+export const REVIEW_GOLDEN_PATH = join(HERE, 'fixtures', 'review_golden_9cb2336.json');
 
 const cryptoSvc = await loadModule('cryptoService.ts', 'pt_crypto.mjs');
 export const sample = await cryptoSvc.decryptJson(readFileSync(join(HERE, 'fixtures', 'generic_sheet_sample.json'), 'utf8').trim());
