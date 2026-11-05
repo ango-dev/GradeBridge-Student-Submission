@@ -98,6 +98,10 @@ export const GENERIC_WORDING = {
   partPageCount: (n: number): string => (n === 1 ? '1 page' : `${n} pages`),
   partNoPage: 'No page yet',
   nextPart: 'Next part',
+  // Added 2026-11-05 at the repository owner's request (keyboard shortcuts).
+  previousPart: 'Back',
+  nextPartKeys: 'Next part (N or ])',
+  previousPartKeys: 'Previous part (B or [)',
   pageNoPart: 'No part yet',
   headerMissing: 'The top of this page could not be cut out.',
   sizeLabel: 'Size',
