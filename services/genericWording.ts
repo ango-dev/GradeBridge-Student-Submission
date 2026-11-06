@@ -91,7 +91,8 @@ export const GENERIC_WORDING = {
   /** Above the matching grid. */
   matchIntro:
     'Choose a part from the list, then click every page that has it. Click a page again to take the part off. ' +
-    'Ctrl-click (⌘-click on a Mac) also adds or removes one page, and Shift-click adds every page between.',
+    'Ctrl-click (⌘-click on a Mac) also adds or removes one page. Shift-click selects, or unselects, every page between, ' +
+    'and you can drag across pages to do the same.',
   partsListHeading: 'Parts',
   matchActive: (label: string): string => `Pages for ${label}`,
   matchPickPartFirst: 'Choose a part from the list first.',
@@ -102,6 +103,8 @@ export const GENERIC_WORDING = {
   previousPart: 'Back',
   nextPartKeys: 'Next part (N or ])',
   previousPartKeys: 'Previous part (B or [)',
+  // Added 2026-11-06 at the repository owner's request (bulk unselect, drag).
+  unselectAll: (n: number): string => (n === 0 ? 'Unselect all' : `Unselect all (${n})`),
   pageNoPart: 'No part yet',
   headerMissing: 'The top of this page could not be cut out.',
   sizeLabel: 'Size',
