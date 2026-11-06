@@ -128,15 +128,8 @@ const GenericPageReview: React.FC<GenericPageReviewProps> = ({
     if (target && files.length > 0) void onRetakePage(target, files[0]);
   };
 
-  // While a drag is painting pages, the grid holds still: with matched pages
-  // hidden, a page that gets the part would otherwise leave the grid and the
-  // next one slide under the pointer.
-  const [dragFrozen, setDragFrozen] = useState<string[] | null>(null);
-
   /** The pages the grid shows: all of them, or only those with no part yet. */
-  const visible = dragFrozen
-    ? ordered.filter(c => dragFrozen.includes(c.regionId))
-    : hideMatched ? ordered.filter(c => (partsOf.get(c.regionId) ?? []).length === 0) : ordered;
+  const visible = hideMatched ? ordered.filter(c => (partsOf.get(c.regionId) ?? []).length === 0) : ordered;
 
   /** Opens the picture viewer on one page, able to step through `list`. */
   const viewPages = (list: CropRef[], key: string) => {
@@ -180,82 +173,120 @@ const GenericPageReview: React.FC<GenericPageReviewProps> = ({
     anchor.current = hideMatched ? null : i;
   };
 
-  // ---- Drag to select ----------------------------------------------------
-  // Press on a page and drag across others: every page passed over takes the
-  // state the first page is about to take, so a drag that starts on a selected
-  // page unselects. Mouse and pen only: a finger drag still scrolls the page.
-  // Near the top or bottom edge the page scrolls by itself.
-  const drag = useRef<{ startKey: string; on: boolean; touched: Set<string>; dragging: boolean; x: number; y: number } | null>(null);
+  // ---- Box select ----------------------------------------------------------
+  // Press anywhere in the grid, on a page or in the space between, and drag:
+  // a box follows the pointer, and the pages it touches are shown as they will
+  // be. On release they all take the chosen part. A box that starts on a page
+  // that already has the part takes it off instead, and Ctrl/⌘ held at the
+  // start flips each page in the box. Esc cancels. Mouse and pen only: a finger
+  // drag still scrolls. Near the top or bottom edge the page scrolls by itself
+  // and the box keeps growing. A press that moves less than a few pixels is an
+  // ordinary click.
+  type BoxMode = 'add' | 'remove' | 'toggle';
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [box, setBox] = useState<{ x0: number; y0: number; x1: number; y1: number; mode: BoxMode; hits: string[] } | null>(null);
+  const boxDrag = useRef<{ sx: number; sy: number; cx: number; cy: number; mode: BoxMode; started: boolean; cancelled: boolean } | null>(null);
   const suppressClick = useRef(false);
   const dragFrame = useRef<number | null>(null);
 
-  const pageKeyAt = (x: number, y: number): string | null =>
-    (document.elementFromPoint(x, y) as HTMLElement | null)?.closest('[data-page-card]')?.getAttribute('data-page-card') ?? null;
+  /** The box from where the press began to where the pointer is, in grid coordinates, and the pages it touches. */
+  const measureBox = () => {
+    const d = boxDrag.current, grid = gridRef.current;
+    if (!d || !grid) return null;
+    const g = grid.getBoundingClientRect();
+    const x1 = d.cx - g.left, y1 = d.cy - g.top;
+    const [l, r] = d.sx < x1 ? [d.sx, x1] : [x1, d.sx];
+    const [t, b] = d.sy < y1 ? [d.sy, y1] : [y1, d.sy];
+    const hits: string[] = [];
+    grid.querySelectorAll<HTMLElement>('[data-page-card]').forEach(li => {
+      const c = li.getBoundingClientRect();
+      const cl = c.left - g.left, ct = c.top - g.top;
+      if (cl < r && cl + c.width > l && ct < b && ct + c.height > t) hits.push(li.getAttribute('data-page-card')!);
+    });
+    return { x0: l, y0: t, x1: r, y1: b, mode: d.mode, hits };
+  };
 
-  const startDrag = (e: React.PointerEvent, key: string) => {
+  const startBox = (e: React.PointerEvent) => {
     if (e.pointerType !== 'mouse' && e.pointerType !== 'pen') return;
-    if (e.button !== 0 || e.shiftKey || e.ctrlKey || e.metaKey || !active) return;
-    e.preventDefault(); // no text selection, no native image drag
+    if (e.button !== 0 || e.shiftKey || !active || !gridRef.current) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('[aria-label="' + 'View larger' + '"]')) return; // the expand button opens the viewer
+    e.preventDefault(); // no text selection, no native image drag; a click still arrives
+    const g = gridRef.current.getBoundingClientRect();
+    const startKey = target.closest('[data-page-card]')?.getAttribute('data-page-card') ?? null;
     const partId = active.part_id;
-    drag.current = {
-      startKey: key, on: !(partsOf.get(key) ?? []).includes(partId),
-      touched: new Set(), dragging: false, x: e.clientX, y: e.clientY,
-    };
-    const paint = (k: string) => {
-      const d = drag.current;
-      if (!d || d.touched.has(k)) return;
-      d.touched.add(k);
-      onAssignPart([k], partId, d.on);
-    };
+    const mode: BoxMode = e.ctrlKey || e.metaKey ? 'toggle'
+      : startKey && (partsOf.get(startKey) ?? []).includes(partId) ? 'remove' : 'add';
+    boxDrag.current = { sx: e.clientX - g.left, sy: e.clientY - g.top, cx: e.clientX, cy: e.clientY, mode, started: false, cancelled: false };
+
     const move = (ev: PointerEvent) => {
-      const d = drag.current;
+      const d = boxDrag.current;
       if (!d) return;
-      d.x = ev.clientX; d.y = ev.clientY;
-      const k = pageKeyAt(ev.clientX, ev.clientY);
-      if (!d.dragging && k && k !== d.startKey) {
-        d.dragging = true;
-        setDragFrozen(visible.map(c => c.regionId));
-        paint(d.startKey);
+      d.cx = ev.clientX; d.cy = ev.clientY;
+      if (!d.started) {
+        const g2 = gridRef.current!.getBoundingClientRect();
+        if (Math.hypot(ev.clientX - g2.left - d.sx, ev.clientY - g2.top - d.sy) < 6) return;
+        d.started = true;
       }
-      if (d.dragging && k) paint(k);
+      setBox(measureBox());
+    };
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape' && boxDrag.current?.started) { ev.preventDefault(); boxDrag.current.cancelled = true; up(); }
     };
     const up = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up);
+      window.removeEventListener('keydown', onKey, true);
       if (dragFrame.current !== null) cancelAnimationFrame(dragFrame.current);
       dragFrame.current = null;
-      if (drag.current?.dragging) {
-        // The click that ends a drag is not a click on the last page.
+      const d = boxDrag.current;
+      boxDrag.current = null;
+      if (d?.started) {
+        const m = measureBoxFrom(d);
+        if (!d.cancelled && m && m.hits.length > 0) {
+          if (d.mode === 'toggle') {
+            const has = (k: string) => (partsOf.get(k) ?? []).includes(partId);
+            const off = m.hits.filter(has), on = m.hits.filter(k => !has(k));
+            if (on.length) onAssignPart(on, partId, true);
+            if (off.length) onAssignPart(off, partId, false);
+          } else {
+            onAssignPart(m.hits, partId, d.mode === 'add');
+          }
+        }
+        // The click that ends a box is not a click on the page under it.
         suppressClick.current = true;
         window.setTimeout(() => { suppressClick.current = false; }, 0);
         anchor.current = null;
       }
-      drag.current = null;
-      setDragFrozen(null);
+      setBox(null);
+    };
+    // measureBox reads boxDrag.current, which `up` has already cleared.
+    const measureBoxFrom = (d: NonNullable<typeof boxDrag.current>) => {
+      boxDrag.current = d;
+      const m = measureBox();
+      boxDrag.current = null;
+      return m;
     };
     const scrollAtEdges = () => {
-      const d = drag.current;
+      const d = boxDrag.current;
       if (!d) return;
-      if (d.dragging) {
-        const box = document.getElementById('main-scroll');
-        const scroller = box && box.scrollHeight > box.clientHeight ? box : null;
+      if (d.started) {
+        const area = document.getElementById('main-scroll');
+        const scroller = area && area.scrollHeight > area.clientHeight ? area : null;
         const top = scroller ? scroller.getBoundingClientRect().top : 0;
         const bottom = scroller ? scroller.getBoundingClientRect().bottom : window.innerHeight;
         // The action bar covers the bottom of the page, so its edge zone starts higher.
-        const dy = d.y < top + 80 ? -Math.ceil((top + 80 - d.y) / 5)
-          : d.y > bottom - 150 ? Math.ceil((d.y - (bottom - 150)) / 5) : 0;
-        if (dy) {
-          (scroller ?? window).scrollBy(0, dy);
-          const k = pageKeyAt(d.x, d.y);
-          if (k) paint(k);
-        }
+        const dy = d.cy < top + 80 ? -Math.ceil((top + 80 - d.cy) / 5)
+          : d.cy > bottom - 150 ? Math.ceil((d.cy - (bottom - 150)) / 5) : 0;
+        if (dy) { (scroller ?? window).scrollBy(0, dy); setBox(measureBox()); }
       }
       dragFrame.current = requestAnimationFrame(scrollAtEdges);
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
     window.addEventListener('pointercancel', up);
+    window.addEventListener('keydown', onKey, true);
     dragFrame.current = requestAnimationFrame(scrollAtEdges);
   };
 
@@ -358,8 +389,8 @@ const GenericPageReview: React.FC<GenericPageReviewProps> = ({
           <p className="text-sm font-semibold text-aggie-900" data-active-part>
             {active ? W.matchActive(shown(active)) : W.matchPickPartFirst}
           </p>
-          <div className="flex items-center gap-2">
-            <label className="flex items-center gap-1.5 text-xs font-medium text-gray-700 cursor-pointer select-none">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <label className="flex items-center gap-1.5 text-xs font-medium text-gray-700 cursor-pointer select-none whitespace-nowrap">
               <input type="checkbox" checked={hideMatched} onChange={e => { setHideMatched(e.target.checked); anchor.current = null; }}
                 className="w-4 h-4 accent-aggie-900" />
               {W.hideMatched}
@@ -367,7 +398,7 @@ const GenericPageReview: React.FC<GenericPageReviewProps> = ({
             <div className="flex rounded-lg border border-gray-300 overflow-hidden text-xs" role="group" aria-label={W.sizeLabel}>
               {SIZES.map(s => (
                 <button key={s} type="button" onClick={() => setSize(s)} aria-pressed={size === s}
-                  className={`px-2.5 py-1.5 flex items-center gap-1 ${size === s ? 'bg-aggie-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>
+                  className={`px-2.5 py-1.5 flex items-center gap-1 whitespace-nowrap ${size === s ? 'bg-aggie-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>
                   <LayoutGrid className={s === 'sm' ? 'w-3 h-3' : s === 'lg' ? 'w-3.5 h-3.5' : 'w-4 h-4'} />
                   {s === 'sm' ? W.sizeCompact : s === 'lg' ? W.sizeLarge : W.sizeExtraLarge}
                 </button>
@@ -375,20 +406,20 @@ const GenericPageReview: React.FC<GenericPageReviewProps> = ({
             </div>
             <button type="button" disabled={activeKeys.length === 0}
               onClick={() => { if (active) { onAssignPart(activeKeys, active.part_id, false); anchor.current = null; } }}
-              className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-gray-300 bg-white text-gray-800 hover:bg-gray-50 flex items-center gap-1 disabled:opacity-40"
+              className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-gray-300 bg-white text-gray-800 hover:bg-gray-50 flex items-center gap-1 whitespace-nowrap disabled:opacity-40"
               data-unselect-all>
               <X className="w-3.5 h-3.5" /> {W.unselectAll(activeKeys.length)}
             </button>
             <div className="flex rounded-lg border border-gray-300 overflow-hidden text-xs font-medium" role="group">
               <button type="button" onClick={() => goToPart(-1)} disabled={parts.length < 2}
                 title={W.previousPartKeys}
-                className="px-2.5 py-1.5 bg-white text-gray-800 hover:bg-gray-50 flex items-center gap-1 border-r border-gray-300 disabled:opacity-40">
+                className="px-2.5 py-1.5 bg-white text-gray-800 hover:bg-gray-50 flex items-center gap-1 whitespace-nowrap border-r border-gray-300 disabled:opacity-40">
                 <ChevronLeft className="w-3.5 h-3.5" /> {W.previousPart}
                 <kbd className="ml-1 px-1 rounded border border-gray-300 bg-gray-50 text-[10px] font-mono text-gray-500">B</kbd>
               </button>
               <button type="button" onClick={() => goToPart(1)} disabled={parts.length < 2}
                 title={W.nextPartKeys}
-                className="px-2.5 py-1.5 bg-white text-gray-800 hover:bg-gray-50 flex items-center gap-1 disabled:opacity-40">
+                className="px-2.5 py-1.5 bg-white text-gray-800 hover:bg-gray-50 flex items-center gap-1 whitespace-nowrap disabled:opacity-40">
                 {W.nextPart}
                 <kbd className="ml-1 px-1 rounded border border-gray-300 bg-gray-50 text-[10px] font-mono text-gray-500">N</kbd>
                 <ChevronRight className="w-3.5 h-3.5" />
@@ -399,6 +430,14 @@ const GenericPageReview: React.FC<GenericPageReviewProps> = ({
         <p className="text-xs text-gray-600 mb-3">{W.matchIntro}</p>
         {hint && <p className="mb-3 text-sm text-red-800 bg-red-50 border border-red-200 rounded px-3 py-2" role="status">{hint}</p>}
 
+        <div ref={gridRef} onPointerDown={startBox} className="relative -mx-4 -mt-3 px-4 pt-3 pb-8 select-none" data-select-area>
+        {box && (
+          <div aria-hidden="true"
+            className={`pointer-events-none absolute z-20 rounded-sm border-2 ${
+              box.mode === 'remove' ? 'border-red-500 bg-red-500/10' : 'border-aggie-500 bg-aggie-500/10'
+            }`}
+            style={{ left: box.x0, top: box.y0, width: box.x1 - box.x0, height: box.y1 - box.y0 }} />
+        )}
         <ul className="grid gap-3" style={{ gridTemplateColumns: GRID_FOR[size] }}>
           {visible.map((crop, i) => {
             const key = crop.regionId;
@@ -408,16 +447,19 @@ const GenericPageReview: React.FC<GenericPageReviewProps> = ({
             const on = !!active && ids.includes(active.part_id);
             const elsewhere = !!active && ids.length > 0 && !on &&
               parts.find(p => p.part_id === ids[0])?.problem_number !== active.problem_number;
+            // While a box is drawn, each page it touches shows what release will make it.
+            const inBox = !!box && box.hits.includes(key);
+            const willBeOn = inBox ? (box!.mode === 'add' ? true : box!.mode === 'remove' ? false : !on) : on;
             return (
               <li key={key} id={`page-card-${key}`} data-page-card={key} data-parts={ids.join(' ')}
                 className={`relative rounded-xl border-2 bg-white overflow-hidden transition-shadow ${
-                  on ? 'border-aggie-700 shadow-md ring-4 ring-gold-300' : 'border-gray-200 hover:border-aggie-300'
+                  inBox && !willBeOn ? 'border-red-400 ring-4 ring-red-200 opacity-80'
+                    : willBeOn ? 'border-aggie-700 shadow-md ring-4 ring-gold-300' : 'border-gray-200 hover:border-aggie-300'
                 }`}
               >
                 <button
                   type="button" aria-pressed={on} disabled={busy === key || busy === `page-${crop.fromPage}`}
                   onClick={(e) => handlePageClick(e, i)}
-                  onPointerDown={(e) => startDrag(e, key)}
                   onMouseDown={(e) => { if (e.shiftKey) e.preventDefault(); /* no text selection on shift-click */ }}
                   className={`relative block w-full text-left ${elsewhere ? 'opacity-60' : ''}`}
                 >
@@ -456,6 +498,7 @@ const GenericPageReview: React.FC<GenericPageReviewProps> = ({
             );
           })}
         </ul>
+        </div>
 
         <div className="mt-5 flex justify-end">
           <button type="button" onClick={() => setStep('check')}
