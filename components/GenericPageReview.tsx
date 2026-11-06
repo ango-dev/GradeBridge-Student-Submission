@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertTriangle, Camera, CheckCircle2, ChevronLeft, ChevronRight, Flag, Image as ImageIcon, Info,
+  AlertTriangle, Camera, CheckCircle2, ChevronLeft, ChevronRight, Flag, X, Image as ImageIcon, Info,
   LayoutGrid, RefreshCw, Upload,
 } from 'lucide-react';
 import { CropRef, GenericPart, PageRef, StudentReview } from '../types';
@@ -10,6 +10,7 @@ import {
 } from '../services/genericSheet';
 import { GENERIC_WORDING as W } from '../services/genericWording';
 import SwipeDeck from './SwipeDeck';
+import { ExpandButton, LightboxImage, useLightbox } from './Lightbox';
 
 /**
  * The review step on the generic answer page, where it is also the labelling
@@ -50,6 +51,8 @@ interface GenericPageReviewProps {
   cropUrls: Record<string, string>;
   /** page id → object URL for the page's header strip, when it could be cut. */
   headerUrls?: Record<string, string>;
+  /** page id → object URL for the whole photograph, for the picture viewer. */
+  pageUrls?: Record<string, string>;
   pages: PageRef[];
   /** Put `partId` on these pages (`on`), or take it off them. */
   onAssignPart: (cropKeys: string[], partId: string, on: boolean) => void;
@@ -70,7 +73,7 @@ const GRID_FOR: Record<Size, string> = {
 const SIZES: Size[] = ['sm', 'lg', 'xl'];
 
 const GenericPageReview: React.FC<GenericPageReviewProps> = ({
-  parts, problems, crops, cropUrls, headerUrls = {}, pages,
+  parts, problems, crops, cropUrls, headerUrls = {}, pageUrls = {}, pages,
   onAssignPart, onReview, onRetakePage, busy,
 }) => {
   const shown = (p: GenericPart): string => partDisplayLabel(p, problems);
@@ -89,6 +92,7 @@ const GenericPageReview: React.FC<GenericPageReviewProps> = ({
     window.matchMedia('(pointer: coarse)').matches);
 
   const ordered = genericCropsInPageOrder(crops, pages);
+  const lightbox = useLightbox();
   const coverage = genericCoverage(parts, crops, pages);
   const flagged = ordered.filter(c => c.review === 'flagged').length;
   const reviewed = ordered.filter(c => c.review === 'signed_off').length;
@@ -124,24 +128,135 @@ const GenericPageReview: React.FC<GenericPageReviewProps> = ({
     if (target && files.length > 0) void onRetakePage(target, files[0]);
   };
 
-  /** The pages the grid shows: all of them, or only those with no part yet. */
-  const visible = hideMatched ? ordered.filter(c => (partsOf.get(c.regionId) ?? []).length === 0) : ordered;
+  // While a drag is painting pages, the grid holds still: with matched pages
+  // hidden, a page that gets the part would otherwise leave the grid and the
+  // next one slide under the pointer.
+  const [dragFrozen, setDragFrozen] = useState<string[] | null>(null);
 
-  /** Click: toggle. Ctrl/⌘-click: toggle, keeping the anchor. Shift-click: add the range. */
+  /** The pages the grid shows: all of them, or only those with no part yet. */
+  const visible = dragFrozen
+    ? ordered.filter(c => dragFrozen.includes(c.regionId))
+    : hideMatched ? ordered.filter(c => (partsOf.get(c.regionId) ?? []).length === 0) : ordered;
+
+  /** Opens the picture viewer on one page, able to step through `list`. */
+  const viewPages = (list: CropRef[], key: string) => {
+    const shownList = list.filter(c => cropUrls[c.regionId]);
+    const images: LightboxImage[] = shownList.map(c => {
+      const ids = partsOf.get(c.regionId) ?? [];
+      const names = parts.filter(p => ids.includes(p.part_id)).map(shown).join(' · ');
+      return {
+        src: cropUrls[c.regionId],
+        caption: `${W.photoHeading(photoNumber(c))}${names ? ` · ${names}` : ''}`,
+        wholeSrc: c.fromPage ? pageUrls[c.fromPage] : undefined,
+      };
+    });
+    lightbox(images, Math.max(0, shownList.findIndex(c => c.regionId === key)));
+  };
+
+  /** The pages that carry the chosen part, for Unselect all. */
+  const activeKeys = active
+    ? ordered.filter(c => (partsOf.get(c.regionId) ?? []).includes(active.part_id)).map(c => c.regionId)
+    : [];
+
+  /**
+   * Click: toggle. Ctrl/⌘-click: toggle, keeping the anchor. Shift-click: the
+   * whole range takes the state the clicked page is about to take, so a
+   * Shift-click on a selected page unselects the range, as in a file manager.
+   */
   const handlePageClick = (e: React.MouseEvent, i: number) => {
+    if (suppressClick.current) return;
     if (!active) { setHint(W.matchPickPartFirst); return; }
     setHint('');
     const key = visible[i].regionId;
+    const on = !(partsOf.get(key) ?? []).includes(active.part_id);
     if (e.shiftKey && anchor.current !== null && anchor.current < visible.length) {
       const [a, b] = anchor.current < i ? [anchor.current, i] : [i, anchor.current];
-      onAssignPart(visible.slice(a, b + 1).map(c => c.regionId), active.part_id, true);
+      onAssignPart(visible.slice(a, b + 1).map(c => c.regionId), active.part_id, on);
     } else {
-      const on = !(partsOf.get(key) ?? []).includes(active.part_id);
       onAssignPart([key], active.part_id, on);
     }
     // A matched page leaves the grid when matched pages are hidden, so the
     // positions move under the anchor: start the next range afresh.
     anchor.current = hideMatched ? null : i;
+  };
+
+  // ---- Drag to select ----------------------------------------------------
+  // Press on a page and drag across others: every page passed over takes the
+  // state the first page is about to take, so a drag that starts on a selected
+  // page unselects. Mouse and pen only: a finger drag still scrolls the page.
+  // Near the top or bottom edge the page scrolls by itself.
+  const drag = useRef<{ startKey: string; on: boolean; touched: Set<string>; dragging: boolean; x: number; y: number } | null>(null);
+  const suppressClick = useRef(false);
+  const dragFrame = useRef<number | null>(null);
+
+  const pageKeyAt = (x: number, y: number): string | null =>
+    (document.elementFromPoint(x, y) as HTMLElement | null)?.closest('[data-page-card]')?.getAttribute('data-page-card') ?? null;
+
+  const startDrag = (e: React.PointerEvent, key: string) => {
+    if (e.pointerType !== 'mouse' && e.pointerType !== 'pen') return;
+    if (e.button !== 0 || e.shiftKey || e.ctrlKey || e.metaKey || !active) return;
+    e.preventDefault(); // no text selection, no native image drag
+    const partId = active.part_id;
+    drag.current = {
+      startKey: key, on: !(partsOf.get(key) ?? []).includes(partId),
+      touched: new Set(), dragging: false, x: e.clientX, y: e.clientY,
+    };
+    const paint = (k: string) => {
+      const d = drag.current;
+      if (!d || d.touched.has(k)) return;
+      d.touched.add(k);
+      onAssignPart([k], partId, d.on);
+    };
+    const move = (ev: PointerEvent) => {
+      const d = drag.current;
+      if (!d) return;
+      d.x = ev.clientX; d.y = ev.clientY;
+      const k = pageKeyAt(ev.clientX, ev.clientY);
+      if (!d.dragging && k && k !== d.startKey) {
+        d.dragging = true;
+        setDragFrozen(visible.map(c => c.regionId));
+        paint(d.startKey);
+      }
+      if (d.dragging && k) paint(k);
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      if (dragFrame.current !== null) cancelAnimationFrame(dragFrame.current);
+      dragFrame.current = null;
+      if (drag.current?.dragging) {
+        // The click that ends a drag is not a click on the last page.
+        suppressClick.current = true;
+        window.setTimeout(() => { suppressClick.current = false; }, 0);
+        anchor.current = null;
+      }
+      drag.current = null;
+      setDragFrozen(null);
+    };
+    const scrollAtEdges = () => {
+      const d = drag.current;
+      if (!d) return;
+      if (d.dragging) {
+        const box = document.getElementById('main-scroll');
+        const scroller = box && box.scrollHeight > box.clientHeight ? box : null;
+        const top = scroller ? scroller.getBoundingClientRect().top : 0;
+        const bottom = scroller ? scroller.getBoundingClientRect().bottom : window.innerHeight;
+        // The action bar covers the bottom of the page, so its edge zone starts higher.
+        const dy = d.y < top + 80 ? -Math.ceil((top + 80 - d.y) / 5)
+          : d.y > bottom - 150 ? Math.ceil((d.y - (bottom - 150)) / 5) : 0;
+        if (dy) {
+          (scroller ?? window).scrollBy(0, dy);
+          const k = pageKeyAt(d.x, d.y);
+          if (k) paint(k);
+        }
+      }
+      dragFrame.current = requestAnimationFrame(scrollAtEdges);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+    dragFrame.current = requestAnimationFrame(scrollAtEdges);
   };
 
   /** Move to the next part (+1) or back to the previous one (-1), wrapping round. */
@@ -258,6 +373,12 @@ const GenericPageReview: React.FC<GenericPageReviewProps> = ({
                 </button>
               ))}
             </div>
+            <button type="button" disabled={activeKeys.length === 0}
+              onClick={() => { if (active) { onAssignPart(activeKeys, active.part_id, false); anchor.current = null; } }}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-gray-300 bg-white text-gray-800 hover:bg-gray-50 flex items-center gap-1 disabled:opacity-40"
+              data-unselect-all>
+              <X className="w-3.5 h-3.5" /> {W.unselectAll(activeKeys.length)}
+            </button>
             <div className="flex rounded-lg border border-gray-300 overflow-hidden text-xs font-medium" role="group">
               <button type="button" onClick={() => goToPart(-1)} disabled={parts.length < 2}
                 title={W.previousPartKeys}
@@ -289,13 +410,14 @@ const GenericPageReview: React.FC<GenericPageReviewProps> = ({
               parts.find(p => p.part_id === ids[0])?.problem_number !== active.problem_number;
             return (
               <li key={key} id={`page-card-${key}`} data-page-card={key} data-parts={ids.join(' ')}
-                className={`rounded-xl border-2 bg-white overflow-hidden transition-shadow ${
+                className={`relative rounded-xl border-2 bg-white overflow-hidden transition-shadow ${
                   on ? 'border-aggie-700 shadow-md ring-4 ring-gold-300' : 'border-gray-200 hover:border-aggie-300'
                 }`}
               >
                 <button
                   type="button" aria-pressed={on} disabled={busy === key || busy === `page-${crop.fromPage}`}
                   onClick={(e) => handlePageClick(e, i)}
+                  onPointerDown={(e) => startDrag(e, key)}
                   onMouseDown={(e) => { if (e.shiftKey) e.preventDefault(); /* no text selection on shift-click */ }}
                   className={`relative block w-full text-left ${elsewhere ? 'opacity-60' : ''}`}
                 >
@@ -326,8 +448,9 @@ const GenericPageReview: React.FC<GenericPageReviewProps> = ({
                 <div className="px-2.5 py-2 border-t border-gray-100 flex flex-wrap items-center gap-1.5">
                   <span className="text-xs font-semibold text-gray-800 mr-1">{W.photoHeading(n)}</span>
                   {partChips(crop)}
-                  {crop.review === 'signed_off' && <CheckCircle2 className="w-3.5 h-3.5 text-green-600 ml-auto" />}
-                  {crop.review === 'flagged' && <Flag className="w-3.5 h-3.5 text-amber-600 ml-auto" />}
+                  {crop.review === 'signed_off' && <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />}
+                  {crop.review === 'flagged' && <Flag className="w-3.5 h-3.5 text-amber-600" />}
+                  {url && <ExpandButton onClick={() => viewPages(visible, key)} className="ml-auto" />}
                 </div>
               </li>
             );
@@ -371,6 +494,7 @@ const GenericPageReview: React.FC<GenericPageReviewProps> = ({
               <div className="px-4 py-3 flex flex-wrap items-center gap-2 border-b border-gray-100">
                 <span className="font-semibold text-gray-900">{W.photoHeading(n)}</span>
                 {partChips(c)}
+                {url && <ExpandButton onClick={() => viewPages(ordered, c.regionId)} className="ml-auto" />}
               </div>
               {ids.length > 0 && (
                 <p className="px-4 pt-2 text-sm text-gray-800 break-words">
