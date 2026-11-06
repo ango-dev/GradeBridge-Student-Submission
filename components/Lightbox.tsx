@@ -41,10 +41,24 @@ export const LIGHTBOX_WORDING = {
 } as const;
 const L = LIGHTBOX_WORDING;
 
+/**
+ * Whether the viewer shows the whole page photo or the answer box, remembered
+ * in this browser so the choice holds from picture to picture, from one
+ * opening to the next, and on a later visit. A convenience only: when storage
+ * is unavailable (a private window) the viewer simply starts on the answer box.
+ */
+const WHOLE_KEY = 'gb-viewer-show-whole-photo';
+const readWhole = (): boolean => {
+  try { return typeof localStorage !== 'undefined' && localStorage.getItem(WHOLE_KEY) === '1'; } catch { return false; }
+};
+const saveWhole = (on: boolean) => {
+  try { localStorage.setItem(WHOLE_KEY, on ? '1' : '0'); } catch { /* not remembered; nothing else changes */ }
+};
+
 export const LightboxProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [images, setImages] = useState<LightboxImage[] | null>(null);
   const [index, setIndex] = useState(0);
-  const [whole, setWhole] = useState(false);
+  const [whole, setWhole] = useState(readWhole);
   const closeRef = useRef<HTMLButtonElement>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
   const count = useRef(0);
@@ -55,7 +69,6 @@ export const LightboxProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     count.current = list.length;
     setImages(list);
     setIndex(Math.max(0, Math.min(at, list.length - 1)));
-    setWhole(false);
   }, []);
 
   const close = useCallback(() => {
@@ -66,7 +79,6 @@ export const LightboxProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const step = useCallback((d: number) => {
     const n = count.current;
     if (n > 0) setIndex(i => (i + d + n) % n);
-    setWhole(false);
   }, []);
 
   // Keys while open. Caught first and stopped there, so the page's own keys
@@ -110,7 +122,7 @@ export const LightboxProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               {many && <span className="ml-2 text-white/60">{L.position(index + 1, images!.length)}</span>}
             </p>
             {current.wholeSrc && (
-              <button type="button" onClick={() => setWhole(w => !w)}
+              <button type="button" onClick={() => { const next = !whole; saveWhole(next); setWhole(next); }}
                 className="px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20 text-sm font-medium flex items-center gap-1.5">
                 <ImageIcon className="w-4 h-4" /> {whole ? L.showAnswer : L.showWhole}
               </button>

@@ -91,8 +91,8 @@ export const GENERIC_WORDING = {
   /** Above the matching grid. */
   matchIntro:
     'Choose a part from the list, then click every page that has it. Click a page again to take the part off. ' +
-    'Ctrl-click (⌘-click on a Mac) also adds or removes one page. Shift-click selects, or unselects, every page between, ' +
-    'and you can drag across pages to do the same.',
+    'Ctrl-click (⌘-click on a Mac) also adds or removes one page, and Shift-click selects, or unselects, every page between. ' +
+    'Drag a box around pages to select them all; start the box on a selected page to unselect, or hold Ctrl (⌘) to flip each one.',
   partsListHeading: 'Parts',
   matchActive: (label: string): string => `Pages for ${label}`,
   matchPickPartFirst: 'Choose a part from the list first.',

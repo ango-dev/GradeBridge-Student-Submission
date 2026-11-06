@@ -3,7 +3,7 @@
 // the commit it is named for. f8ab9d8 wrote the first; 99dd7c7 the one for the
 // part-first matching grid; fea2ede the one for its compact layout; 9cb2336 the one
 // with part keys and the readable compact card; 6e54594 the one with drag, bulk
-// unselect and the photo viewer.
+// unselect and the photo viewer; e51e323 the one with box select.
 // =====================================================
 // The generic review's markup at the commit that carries the approved wording
 // for labelling by problem, then parts (`FINDINGS_SS_MULTIPART_PAGES_2026-10-07`
