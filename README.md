@@ -9,6 +9,8 @@ Complete academic assignments in your browser: type answers with LaTeX support a
 
 ---
 
+> **AI usage.** The changes in this copy of GradeBridge (the page matching, swipe-to-check step, photo viewer, iPhone (HEIC) photo fix, wider layout and UC Davis styling) were written with the help of an AI coding assistant (Claude, by Anthropic), directed and reviewed by the repository owner. Every change passed the project's existing automated tests before it was merged, and each one is described in its own pull request. The original GradeBridge app, and everything not listed above, is the work of its original authors.
+
 ## The Problem
 
 **Traditional submissions:** Inconsistent formatting, broken equations, messy PDFs that are a nightmare to grade.
